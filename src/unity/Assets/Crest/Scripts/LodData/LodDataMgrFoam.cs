@@ -9,7 +9,7 @@ namespace Crest
     /// </summary>
     public class LodDataMgrFoam : LodDataMgrPersistent
     {
-        public override SimType LodDataType { get { return SimType.Foam; } }
+        public override string SimName { get { return "Foam"; } }
         protected override string ShaderSim { get { return "Hidden/Ocean/Simulation/Update Foam"; } }
         public override RenderTextureFormat TextureFormat { get { return RenderTextureFormat.RHalf; } }
 
@@ -46,7 +46,7 @@ namespace Crest
             OceanRenderer.Instance._lodDataAnimWaves.BindResultData(lodIdx, 1, simMaterial);
 
             // assign sea floor depth - to slot 1 current frame data
-            if (OceanRenderer.Instance._createSeaFloorDepthData)
+            if (OceanRenderer.Instance._lodDataSeaDepths)
             {
                 OceanRenderer.Instance._lodDataSeaDepths.BindResultData(lodIdx, 1, simMaterial);
             }
@@ -56,7 +56,7 @@ namespace Crest
             }
 
             // assign flow - to slot 1 current frame data
-            if (OceanRenderer.Instance._createFlowSim)
+            if (OceanRenderer.Instance._lodDataFlow)
             {
                 OceanRenderer.Instance._lodDataFlow.BindResultData(lodIdx, 1, simMaterial);
             }
@@ -66,10 +66,11 @@ namespace Crest
             }
         }
 
-        protected override int GetNumSubsteps(float dt)
+        public override void GetSimSubstepData(float frameDt, out int numSubsteps, out float substepDt)
         {
             // foam always does just one sim step
-            return 1;
+            substepDt = frameDt;
+            numSubsteps = 1;
         }
 
         static int[] _paramsSampler;

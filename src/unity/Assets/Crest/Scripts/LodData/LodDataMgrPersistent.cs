@@ -29,11 +29,12 @@ namespace Crest
 
             var lodCount = OceanRenderer.Instance.CurrentLodCount;
             _renderSimMaterial = new Material[MAX_SIM_STEPS, lodCount];
-            for(int stepi = 0; stepi < MAX_SIM_STEPS; stepi++)
+            var shader = Shader.Find(ShaderSim);
+            for (int stepi = 0; stepi < MAX_SIM_STEPS; stepi++)
             {
                 for (int i = 0; i < lodCount; i++)
                 {
-                    _renderSimMaterial[stepi, i] = new Material(Shader.Find(ShaderSim));
+                    _renderSimMaterial[stepi, i] = new Material(shader);
                 }
             }
         }
@@ -70,17 +71,18 @@ namespace Crest
             _pwMat._target = null;
         }
 
-        protected abstract int GetNumSubsteps(float dt);
+        public abstract void GetSimSubstepData(float frameDt, out int numSubsteps, out float substepDt);
 
         public override void BuildCommandBuffer(OceanRenderer ocean, CommandBuffer buf)
         {
             base.BuildCommandBuffer(ocean, buf);
 
             var lodCount = OceanRenderer.Instance.CurrentLodCount;
-            var steps = GetNumSubsteps(Time.deltaTime);
-            var substepDt = Time.deltaTime / steps;
+            float substepDt;
+            int numSubsteps;
+            GetSimSubstepData(Time.deltaTime, out numSubsteps, out substepDt);
 
-            for (int stepi = 0; stepi < steps; stepi++)
+            for (int stepi = 0; stepi < numSubsteps; stepi++)
             {
                 for (var lodIdx = lodCount - 1; lodIdx >= 0; lodIdx--)
                 {
@@ -114,7 +116,12 @@ namespace Crest
 
                     SetAdditionalSimParams(lodIdx, _renderSimMaterial[stepi, lodIdx]);
 
-                    buf.Blit(null, DataTexture(lodIdx), _renderSimMaterial[stepi, lodIdx]);
+                    {
+                        var rt = DataTexture(lodIdx);
+                        buf.SetRenderTarget(rt, rt.depthBuffer);
+                    }
+
+                    buf.DrawMesh(FullScreenQuad(), Matrix4x4.identity, _renderSimMaterial[stepi, lodIdx]);
 
                     SubmitDraws(lodIdx, buf);
                 }
@@ -140,6 +147,36 @@ namespace Crest
         /// </summary>
         protected virtual void SetAdditionalSimParams(int lodIdx, Material simMaterial)
         {
+        }
+
+        static Mesh s_fullScreenQuad;
+        static Mesh FullScreenQuad()
+        {
+            if (s_fullScreenQuad != null) return s_fullScreenQuad;
+
+            s_fullScreenQuad = new Mesh();
+            s_fullScreenQuad.name = "FullScreenQuad";
+            s_fullScreenQuad.vertices = new Vector3[]
+            {
+                new Vector3(-1f, -1f, 0.1f),
+                new Vector3(-1f,  1f, 0.1f),
+                new Vector3( 1f,  1f, 0.1f),
+                new Vector3( 1f, -1f, 0.1f),
+            };
+            s_fullScreenQuad.uv = new Vector2[]
+            {
+                Vector2.up,
+                Vector2.zero,
+                Vector2.right,
+                Vector2.one,
+            };
+
+            s_fullScreenQuad.SetIndices(new int[]
+            {
+                0, 2, 1, 0, 3, 2
+            }, MeshTopology.Triangles, 0);
+
+            return s_fullScreenQuad;
         }
     }
 }

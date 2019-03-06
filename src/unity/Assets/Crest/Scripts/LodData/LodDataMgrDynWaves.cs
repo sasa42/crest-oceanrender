@@ -5,11 +5,11 @@ using UnityEngine;
 namespace Crest
 {
     /// <summary>
-    /// A dynamic shape simulation that moves around with a displacement LOD. It
+    /// A dynamic shape simulation that moves around with a displacement LOD.
     /// </summary>
     public class LodDataMgrDynWaves : LodDataMgrPersistent
     {
-        public override SimType LodDataType { get { return SimType.DynamicWaves; } }
+        public override string SimName { get { return "DynamicWaves"; } }
         protected override string ShaderSim { get { return "Hidden/Ocean/Simulation/Update Dynamic Waves"; } }
         public override RenderTextureFormat TextureFormat { get { return RenderTextureFormat.RGHalf; } }
 
@@ -75,7 +75,7 @@ namespace Crest
 
             // assign sea floor depth - to slot 1 current frame data. minor bug here - this depth will actually be from the previous frame,
             // because the depth is scheduled to render just before the animated waves, and this sim happens before animated waves.
-            if (OceanRenderer.Instance._createSeaFloorDepthData)
+            if (OceanRenderer.Instance._lodDataSeaDepths)
             {
                 OceanRenderer.Instance._lodDataSeaDepths.BindResultData(lodIdx, 1, simMaterial);
             }
@@ -84,7 +84,7 @@ namespace Crest
                 LodDataMgrSeaFloorDepth.BindNull(1, simMaterial);
             }
 
-            if (OceanRenderer.Instance._createFlowSim)
+            if (OceanRenderer.Instance._lodDataFlow)
             {
                 OceanRenderer.Instance._lodDataFlow.BindResultData(lodIdx, 1, simMaterial);
             }
@@ -108,16 +108,17 @@ namespace Crest
             }
         }
 
-        protected override int GetNumSubsteps(float dt)
+        public override void GetSimSubstepData(float frameDt, out int numSubsteps, out float substepDt)
         {
-            return Mathf.Min(MAX_SIM_STEPS, Mathf.CeilToInt(dt / Settings._maxSubstepDt));
-        }
-
-        public float SimDeltaTime
-        {
-            get
+            numSubsteps = Mathf.CeilToInt(frameDt / Settings._maxSubstepDt);
+            numSubsteps = Mathf.Min(MAX_SIM_STEPS, numSubsteps);
+            if (numSubsteps > 0)
             {
-                return Time.deltaTime / GetNumSubsteps(Time.deltaTime);
+                substepDt = Mathf.Min(Settings._maxSubstepDt, frameDt / numSubsteps);
+            }
+            else
+            {
+                substepDt = 0f;
             }
         }
 

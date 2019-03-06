@@ -38,7 +38,7 @@ public class FeedVelocityToExtrude : MonoBehaviour
 
     private void Start()
     {
-        if (OceanRenderer.Instance == null || !OceanRenderer.Instance._createDynamicWaveSim)
+        if (OceanRenderer.Instance == null || !OceanRenderer.Instance.CreateDynamicWaveSim)
         {
             enabled = false;
             return;
@@ -128,6 +128,8 @@ public class FeedVelocityToExtrude : MonoBehaviour
 
         _mat.SetFloat("_Weight", (_boat == null || _boat.InWater) ? _weight / simsActive : 0f);
 
-        _mat.SetFloat("_SimDeltaTime", OceanRenderer.Instance._lodDataDynWaves.SimDeltaTime);
+        float dt; int steps;
+        OceanRenderer.Instance._lodDataDynWaves.GetSimSubstepData(Time.deltaTime, out steps, out dt);
+        _mat.SetFloat("_SimDeltaTime", dt);
     }
 }

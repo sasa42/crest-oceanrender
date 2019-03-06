@@ -11,7 +11,7 @@ namespace Crest
     {
         [Tooltip("The viewpoint which drives the ocean detail. Defaults to main camera."), SerializeField]
         Transform _viewpoint;
-        public Transform Viewpoint { get { return _viewpoint; } set { _viewpoint = value; } }
+        public Transform Viewpoint { get { return _viewpoint; } }
 
         [Tooltip("Optional provider for time, can be used to hardcode time for automation, or provide server time. Defaults to local Unity time."), SerializeField]
         TimeProviderBase _timeProvider;
@@ -49,35 +49,43 @@ namespace Crest
         [Delayed, Tooltip("The largest scale the ocean can be (-1 for unlimited).")]
         public float _maxScale = 256f;
 
-        [SerializeField, Delayed, Tooltip("Side dimension in quads of an ocean tile.")]
-        public float _baseVertDensity = 64f;
+        [SerializeField, Delayed, Tooltip("Resolution of ocean LOD data. Use even numbers like 256 or 384. This is 4x the old 'Base Vert Density' param, so if you used 64 for this param, set this to 256.")]
+        int _lodDataResolution = 256;
+        public int LodDataResolution { get { return _lodDataResolution; } }
 
-        [SerializeField, Delayed, Tooltip("Number of ocean tile scales/LODs to generate."), Range(2, LodDataMgr.MAX_LOD_COUNT)]
+        [SerializeField, Delayed, Tooltip("How much of the water shape gets tessellated by geometry. If set to e.g. 4, every geometry quad will span 4x4 LOD data texels. Use power of 2 values like 1, 2, 4...")]
+        int _geometryDownSampleFactor = 2;
+
+        [SerializeField, Tooltip("Number of ocean tile scales/LODs to generate."), Range(2, LodDataMgr.MAX_LOD_COUNT)]
         int _lodCount = 7;
-        public int LodDataResolution { get { return (int)(4f * _baseVertDensity); } }
 
 
         [Header("Simulation Params")]
 
         public SimSettingsAnimatedWaves _simSettingsAnimatedWaves;
 
-        [Tooltip("Water depth information used for shallow water, shoreline foam, wave attenuation, among others.")]
-        public bool _createSeaFloorDepthData = true;
+        [Tooltip("Water depth information used for shallow water, shoreline foam, wave attenuation, among others."), SerializeField]
+        bool _createSeaFloorDepthData = true;
+        public bool CreateSeaFloorDepthData { get { return _createSeaFloorDepthData; } }
 
-        [Tooltip("Simulation of foam created in choppy water and dissipating over time.")]
-        public bool _createFoamSim = true;
+        [Tooltip("Simulation of foam created in choppy water and dissipating over time."), SerializeField]
+        bool _createFoamSim = true;
+        public bool CreateFoamSim { get { return _createFoamSim; } }
         public SimSettingsFoam _simSettingsFoam;
 
-        [Tooltip("Dynamic waves generated from interactions with objects such as boats.")]
-        public bool _createDynamicWaveSim = false;
+        [Tooltip("Dynamic waves generated from interactions with objects such as boats."), SerializeField]
+        bool _createDynamicWaveSim = false;
+        public bool CreateDynamicWaveSim { get { return _createDynamicWaveSim; } }
         public SimSettingsWave _simSettingsDynamicWaves;
 
-        [Tooltip("Horizontal motion of water body, akin to water currents.")]
-        public bool _createFlowSim = false;
+        [Tooltip("Horizontal motion of water body, akin to water currents."), SerializeField]
+        bool _createFlowSim = false;
+        public bool CreateFlowSim { get { return _createFlowSim; } }
         public SimSettingsFlow _simSettingsFlow;
 
-        [Tooltip("Shadow information used for lighting water.")]
-        public bool _createShadowData = false;
+        [Tooltip("Shadow information used for lighting water."), SerializeField]
+        bool _createShadowData = false;
+        public bool CreateShadowData { get { return _createShadowData; } }
         [Tooltip("The primary directional light. Required if shadowing is enabled.")]
         public Light _primaryLight;
         public SimSettingsShadow _simSettingsShadow;
@@ -85,11 +93,12 @@ namespace Crest
 
         [Header("Debug Params")]
 
-        [Tooltip("Whether to generate ocean geometry tiles uniformly (with overlaps)")]
+        [Tooltip("Whether to generate ocean geometry tiles uniformly (with overlaps).")]
         public bool _uniformTiles = false;
-        [Tooltip("Disable generating a wide strip of triangles at the outer edge to extend ocean to edge of view frustum")]
+        [Tooltip("Disable generating a wide strip of triangles at the outer edge to extend ocean to edge of view frustum.")]
         public bool _disableSkirt = false;
-
+        [Tooltip("Move ocean with viewpoint.")]
+        public bool _followViewpoint = true;
 
         float _viewerAltitudeLevelAlpha = 0f;
         /// <summary>
@@ -129,7 +138,7 @@ namespace Crest
 
             _instance = this;
 
-            OceanBuilder.GenerateMesh(this, _baseVertDensity, _lodCount);
+            OceanBuilder.GenerateMesh(this, _lodDataResolution, _geometryDownSampleFactor, _lodCount);
 
             if (null == GetComponent<BuildCommandBufferBase>())
             {
@@ -184,9 +193,13 @@ namespace Crest
             Shader.SetGlobalVector("_WindDirXZ", WindDir);
             Shader.SetGlobalFloat("_CrestTime", CurrentTime);
 
-            LateUpdatePosition();
-            LateUpdateScale();
-            LateUpdateViewerHeight();
+            if (_followViewpoint)
+            {
+                LateUpdatePosition();
+                LateUpdateScale();
+                LateUpdateViewerHeight();
+            }
+
             LateUpdateLods();
         }
 
@@ -228,7 +241,7 @@ namespace Crest
         void LateUpdateViewerHeight()
         {
             var pos = Viewpoint.position;
-            var rect = new Rect(pos, Vector3.zero);
+            var rect = new Rect(pos.x, pos.z, 0f, 0f);
 
             float waterHeight;
             if (CollisionProvider.GetSamplingData(ref rect, 0f, _samplingData)
@@ -263,7 +276,7 @@ namespace Crest
         [ContextMenu("Regenerate mesh")]
         void RegenMesh()
         {
-            OceanBuilder.GenerateMesh(this, _baseVertDensity, _lodCount);
+            OceanBuilder.GenerateMesh(this, _lodDataResolution, _geometryDownSampleFactor, _lodCount);
         }
 #if UNITY_EDITOR
         [ContextMenu("Regenerate mesh", true)]
@@ -275,8 +288,8 @@ namespace Crest
 
         public int GetLodIndex(float gridSize)
         {
-            //gridSize = 4f * transform.lossyScale.x * Mathf.Pow(2f, result) / (4f * _baseVertDensity);
-            int result = Mathf.RoundToInt(Mathf.Log((4f * _baseVertDensity) * gridSize / (4f * transform.lossyScale.x)) / Mathf.Log(2f));
+            //gridSize = 4f * transform.lossyScale.x * Mathf.Pow(2f, result) / _lodDataResolution;
+            int result = Mathf.RoundToInt(Mathf.Log(_lodDataResolution * gridSize / (4f * transform.lossyScale.x)) / Mathf.Log(2f));
 
             if (result < 0 || result >= _lodCount)
             {
@@ -321,5 +334,36 @@ namespace Crest
         /// </summary>
         ICollProvider _collProvider;
         public ICollProvider CollisionProvider { get { return _collProvider != null ? _collProvider : (_collProvider = _simSettingsAnimatedWaves.CreateCollisionProvider()); } }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            // Must be at least 0.25, and must be on a power of 2
+            _minScale = Mathf.Pow(2f, Mathf.Round(Mathf.Log(Mathf.Max(_minScale, 0.25f), 2f)));
+
+            // Max can be -1 which means no maximum
+            if (_maxScale != -1f)
+            {
+                // otherwise must be at least 0.25, and must be on a power of 2
+                _maxScale = Mathf.Pow(2f, Mathf.Round(Mathf.Log(Mathf.Max(_maxScale, _minScale), 2f)));
+            }
+
+            // Gravity 0 makes waves freeze which is weird but doesn't seem to break anything so allowing this for now
+            _gravityMultiplier = Mathf.Max(_gravityMultiplier, 0f);
+
+            // LOD data resolution multiple of 2 for general GPU texture reasons (like pixel quads)
+            _lodDataResolution -= _lodDataResolution % 2;
+
+            _geometryDownSampleFactor = Mathf.ClosestPowerOfTwo(Mathf.Max(_geometryDownSampleFactor, 1));
+
+            var remGeo = _lodDataResolution % _geometryDownSampleFactor;
+            if (remGeo > 0)
+            {
+                var newLDR = _lodDataResolution - (_lodDataResolution % _geometryDownSampleFactor);
+                Debug.LogWarning("Adjusted Lod Data Resolution from " + _lodDataResolution + " to " + newLDR + " to ensure the Geometry Down Sample Factor is a factor (" + _geometryDownSampleFactor + ").", this);
+                _lodDataResolution = newLDR;
+            }
+        }
+#endif
     }
 }

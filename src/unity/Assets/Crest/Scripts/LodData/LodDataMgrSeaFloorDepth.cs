@@ -6,12 +6,11 @@ using UnityEngine.Rendering;
 namespace Crest
 {
     /// <summary>
-    /// Renders relative depth of ocean floor, by rendering the relative height of tagged objects from top down. This loddata rides
-    /// on the LodDataAnimatedWaves currently.
+    /// Renders relative depth of ocean floor, by rendering the relative height of tagged objects from top down.
     /// </summary>
     public class LodDataMgrSeaFloorDepth : LodDataMgr
     {
-        public override SimType LodDataType { get { return SimType.SeaFloorDepth; } }
+        public override string SimName { get { return "SeaFloorDepth"; } }
         public override SimSettingsBase CreateDefaultSettings() { return null; }
         public override void UseSettings(SimSettingsBase settings) { }
         public override RenderTextureFormat TextureFormat { get { return RenderTextureFormat.RFloat; } }
@@ -37,7 +36,7 @@ namespace Crest
             }
 
             // targets have now been cleared, we can early out next time around
-            if(_drawList.Count == 0)
+            if (_drawList.Count == 0)
             {
                 _targetsClear = true;
             }

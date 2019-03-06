@@ -76,6 +76,10 @@ namespace Crest
 
         void InitPhases()
         {
+            // Set random seed to get repeatable results
+            Random.State randomStateBkp = Random.state;
+            Random.InitState(_randomSeed);
+
             var totalComps = _componentsPerOctave * OceanWaveSpectrum.NUM_OCTAVES;
             _phases = new float[totalComps];
             for (var octave = 0; octave < OceanWaveSpectrum.NUM_OCTAVES; octave++)
@@ -87,6 +91,8 @@ namespace Crest
                     _phases[index] = 2f * Mathf.PI * rnd;
                 }
             }
+
+            Random.state = randomStateBkp;
         }
 
         public void SetOrigin(Vector3 newOrigin)
@@ -294,11 +300,12 @@ namespace Crest
             material.SetVectorArray("_ChopAmps", UpdateBatchScratchData._chopAmpsBatch);
             material.SetFloat("_NumInBatch", numInBatch);
             material.SetFloat("_AttenuationInShallows", OceanRenderer.Instance._lodDataAnimWaves.Settings.AttenuationInShallows);
-            material.SetInt("_NumWaveVecs", 1 + numInBatch / 4);
 
+            int numVecs = (numInBatch + 3) / 4;
+            material.SetInt("_NumWaveVecs", numVecs);
             OceanRenderer.Instance._lodDataAnimWaves.BindResultData(lodIdx, 0, material);
 
-            if (OceanRenderer.Instance._createSeaFloorDepthData)
+            if (OceanRenderer.Instance._lodDataSeaDepths)
             {
                 OceanRenderer.Instance._lodDataSeaDepths.BindResultData(lodIdx, 0, material, false);
             }

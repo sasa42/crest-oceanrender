@@ -15,7 +15,7 @@ public class OceanDebugGUI : MonoBehaviour
     static Dictionary<System.Type, bool> _drawTargets = new Dictionary<System.Type, bool>();
     static Dictionary<System.Type, string> _simNames = new Dictionary<System.Type, string>();
 
-    public static bool OverGUI( Vector2 screenPosition )
+    public static bool OverGUI(Vector2 screenPosition)
     {
         return screenPosition.x < _leftPanelWidth;
     }
@@ -44,7 +44,7 @@ public class OceanDebugGUI : MonoBehaviour
         {
             Time.timeScale = Time.timeScale == 0f ? 1f : 0f;
         }
-        if( Input.GetKeyDown(KeyCode.R))
+        if (Input.GetKeyDown(KeyCode.R))
         {
             SceneManager.LoadScene(SceneManager.GetSceneAt(0).buildIndex);
         }
@@ -78,7 +78,18 @@ public class OceanDebugGUI : MonoBehaviour
             GUI.Label(new Rect(x, y, w, h), "Gerstner weight(s)"); y += h;
             foreach (var gerstner in gerstners)
             {
-                gerstner._weight = GUI.HorizontalSlider(new Rect(x, y, w, h), gerstner._weight, 0f, 1f); y += h;
+                var specW = 75f;
+                gerstner._weight = GUI.HorizontalSlider(new Rect(x, y, w - specW - 5f, h), gerstner._weight, 0f, 1f);
+
+#if UNITY_EDITOR
+                if (GUI.Button(new Rect(x + w - specW, y, specW, h), "Spectrum"))
+                {
+                    var path = UnityEditor.AssetDatabase.GetAssetPath(gerstner._spectrum);
+                    var asset = UnityEditor.AssetDatabase.LoadMainAssetAtPath(path);
+                    UnityEditor.Selection.activeObject = asset;
+                }
+#endif
+                y += h;
             }
 
             _showSimTargets = GUI.Toggle(new Rect(x, y, w, h), _showSimTargets, "Show sim data"); y += h;
@@ -109,6 +120,13 @@ public class OceanDebugGUI : MonoBehaviour
                 GUI.Label(new Rect(x, y, w, h), string.Format("Cache hits: {0}/{1}", cache.CacheHits, cache.CacheChecks)); y += h;
             }
 
+            if (OceanRenderer.Instance._lodDataDynWaves != null)
+            {
+                int steps; float dt;
+                OceanRenderer.Instance._lodDataDynWaves.GetSimSubstepData(Time.deltaTime, out steps, out dt);
+                GUI.Label(new Rect(x, y, w, h), string.Format("Sim steps: {0:0.00000} x {1}", dt, steps)); y += h;
+            }
+
             if (GUI.Button(new Rect(x, y, w, h), "Hide GUI (G)"))
             {
                 ToggleGUI();
@@ -127,7 +145,7 @@ public class OceanDebugGUI : MonoBehaviour
         }
 
         // draw source textures to screen
-        if ( _showSimTargets )
+        if (_showSimTargets)
         {
             DrawShapeTargets();
         }
@@ -141,15 +159,17 @@ public class OceanDebugGUI : MonoBehaviour
         float column = 1f;
 
         DrawSims<LodDataMgrAnimWaves>(OceanRenderer.Instance._lodDataAnimWaves, true, ref column);
-        if (OceanRenderer.Instance._createDynamicWaveSim) DrawSims<LodDataMgrDynWaves>(OceanRenderer.Instance._lodDataDynWaves, false, ref column);
-        if (OceanRenderer.Instance._createFoamSim) DrawSims<LodDataMgrFoam>(OceanRenderer.Instance._lodDataFoam, false, ref column);
-        if (OceanRenderer.Instance._createFlowSim) DrawSims<LodDataMgrFlow>(OceanRenderer.Instance._lodDataFlow, false, ref column);
-        if (OceanRenderer.Instance._createShadowData) DrawSims<LodDataMgrShadow>(OceanRenderer.Instance._lodDataShadow, false, ref column);
+        DrawSims<LodDataMgrDynWaves>(OceanRenderer.Instance._lodDataDynWaves, false, ref column);
+        DrawSims<LodDataMgrFoam>(OceanRenderer.Instance._lodDataFoam, false, ref column);
+        DrawSims<LodDataMgrFlow>(OceanRenderer.Instance._lodDataFlow, false, ref column);
+        DrawSims<LodDataMgrShadow>(OceanRenderer.Instance._lodDataShadow, false, ref column);
         DrawSims<LodDataMgrSeaFloorDepth>(OceanRenderer.Instance._lodDataSeaDepths, false, ref column);
     }
 
     static void DrawSims<SimType>(LodDataMgr lodData, bool showByDefault, ref float offset) where SimType : LodDataMgr
     {
+        if (lodData == null) return;
+
         var type = typeof(SimType);
         if (!_drawTargets.ContainsKey(type))
         {
